@@ -8,6 +8,7 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <time.h>
 #include <sys/ioctl.h>
 
 #ifdef __PROSPERO__
@@ -129,22 +130,23 @@ static void send_ack(int fd, struct usb_fs_endpoint *eps, uint8_t orig_seq) {
 
 void xbox_gip_handshake(int fd, struct usb_fs_endpoint *eps) {
     static const uint8_t power[] = {0x05, 0x20, 0x00, 0x01, 0x00};
+    static const uint8_t hello[] = {GIP_CMD_ACK, 0x00, 0x00, 0x00};
     uint8_t buf[64];
     int announced = 0;
 
     g_input_count = 0;
 
-    /* Pass 0: wait for ANNOUNCE; pass 1: send hello to re-trigger */
-    for (int pass = 0; pass < 2 && !announced; pass++) {
-        if (pass == 1) {
-            uint8_t hello[4] = {GIP_CMD_ACK, 0x00, 0x00, 0x00};
-            usb_send_out(fd, &eps[1], hello, 4, "hello");
-        }
-        /* Pass 0: 3 reads — if ANNOUNCE was already sent during probe, we miss it fast.
-         * Pass 1: send hello to re-trigger, wait longer. Handles both direct + hub. */
-        int reads = (pass == 0) ? 3 : 60;
-        for (int i = 0; i < reads && !announced; i++) {
-            int n = read_one(fd, eps, buf, 150);
+    /* Correct GIP init order: send POWER ON FIRST to trigger the controller's
+     * ANNOUNCE, then read + ACK it. Retry up to 4 times (re-sending POWER, plus
+     * a hello to re-trigger) since the announce can be missed on hubs / after a
+     * probe consumed an earlier one. If we ever read an INPUT packet the
+     * controller is already streaming — done. A late announce is also handled
+     * in the main loop (xbox_handle_packet ANNOUNCE case) as a backstop. */
+    for (int attempt = 0; attempt < 4 && !announced; attempt++) {
+        usb_send_out(fd, &eps[1], power, 5, "power");
+        if (attempt > 0) usb_send_out(fd, &eps[1], hello, 4, "hello");
+        for (int i = 0; i < 30 && !announced; i++) {
+            int n = read_one(fd, eps, buf, 100);
             if (n > 0 && buf[0] == GIP_CMD_ANNOUNCE) {
                 send_ack(fd, eps, buf[1]);
                 announced = 1;
@@ -154,7 +156,6 @@ void xbox_gip_handshake(int fd, struct usb_fs_endpoint *eps) {
         }
     }
 
-    usb_send_out(fd, &eps[1], power, 5, "power");
     LOG("Xbox handshake done (announced=%d)\n", announced);
 }
 
