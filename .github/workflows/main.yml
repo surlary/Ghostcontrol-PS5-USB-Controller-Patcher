@@ -1,0 +1,52 @@
+name: build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Cache PS5 Payload SDK
+      id: cache-sdk
+      uses: actions/cache@v4
+      with:
+        path: ~/ps5-payload-sdk
+        key: ps5-payload-sdk-${{ hashFiles('.sdk-version') }}
+        restore-keys: |
+          ps5-payload-sdk-
+
+    - name: Install prerequisites
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-18 lld-18
+
+    - name: Build PS5 Payload SDK
+      if: steps.cache-sdk.outputs.cache-hit != 'true'
+      run: |
+        git clone --depth 1 https://github.com/ps5-payload-dev/sdk.git /tmp/ps5-sdk
+        cd /tmp/ps5-sdk
+        make install
+        ./libcxx.sh
+      env:
+        DESTDIR: ~/ps5-payload-sdk
+        PS5_PAYLOAD_SDK: ~/ps5-payload-sdk
+
+    - name: Build Ghostcontrol
+      run: make -C payload clean all
+      env:
+        PS5_PAYLOAD_SDK: ~/ps5-payload-sdk
+
+    - name: Rename artifact
+      run: cp payload/ghost-control-xbox-ps5.elf Ghostcontrol.elf
+
+    - name: Upload ELF
+      uses: actions/upload-artifact@v4
+      with:
+        name: Ghostcontrol
+        path: Ghostcontrol.elf
+        if-no-files-found: error
