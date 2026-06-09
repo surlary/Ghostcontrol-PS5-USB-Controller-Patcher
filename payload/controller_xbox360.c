@@ -70,11 +70,11 @@ void xbox360_parse_input(const uint8_t *b, ScePadData *o) {
     if (lt > 16u) btn |= SCE_PAD_BUTTON_L2;
     if (rt > 16u) btn |= SCE_PAD_BUTTON_R2;
 
-    /* Combo: RT + Start → Touchpad */
-    if ((rt > 128u) && (b0 & 0x10u)) {
-        btn &= ~(SCE_PAD_BUTTON_R2 | SCE_PAD_BUTTON_OPTIONS);
+    /* Combo: LB+Start OR RB+Back → Touchpad */
+    if (((b1 & 0x01u) && (b0 & 0x10u)) || ((b1 & 0x02u) && (b0 & 0x20u))) {
+        if (b1 & 0x01u) btn &= ~(SCE_PAD_BUTTON_L1 | SCE_PAD_BUTTON_OPTIONS);
+        if (b1 & 0x02u) btn &= ~(SCE_PAD_BUTTON_R1 | SCE_PAD_BUTTON_SHARE);
         btn |= SCE_PAD_BUTTON_TOUCH_PAD;
-        o->analogButtons.r2 = 0;
     }
 
     o->buttons   = btn;
