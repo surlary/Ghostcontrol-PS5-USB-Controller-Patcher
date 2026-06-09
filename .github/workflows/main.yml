@@ -3,6 +3,9 @@ name: build
 on:
   workflow_dispatch:
 
+env:
+  SDK_PATH: ${{ github.workspace }}/_sdk/ps5-payload-sdk
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,8 +18,8 @@ jobs:
       id: cache-sdk
       uses: actions/cache@v4
       with:
-        path: ~/ps5-payload-sdk
-        key: ps5-payload-sdk-${{ hashFiles('.sdk-version') }}
+        path: ${{ env.SDK_PATH }}
+        key: ps5-payload-sdk-v1
         restore-keys: |
           ps5-payload-sdk-
 
@@ -30,16 +33,15 @@ jobs:
       run: |
         git clone --depth 1 https://github.com/ps5-payload-dev/sdk.git /tmp/ps5-sdk
         cd /tmp/ps5-sdk
+        export PS5_PAYLOAD_SDK="${{ env.SDK_PATH }}"
+        export DESTDIR="${{ env.SDK_PATH }}"
         make install
         ./libcxx.sh
-      env:
-        DESTDIR: ~/ps5-payload-sdk
-        PS5_PAYLOAD_SDK: ~/ps5-payload-sdk
 
     - name: Build Ghostcontrol
       run: make -C payload clean all
       env:
-        PS5_PAYLOAD_SDK: ~/ps5-payload-sdk
+        PS5_PAYLOAD_SDK: ${{ env.SDK_PATH }}
 
     - name: Rename artifact
       run: cp payload/ghost-control-xbox-ps5.elf Ghostcontrol.elf
