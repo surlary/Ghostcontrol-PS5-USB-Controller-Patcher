@@ -236,6 +236,12 @@ static void inject_pad(int slot, const ScePadData *pad) {
 #define XBOX_GIP_SUBCLASS  0x47u
 #define XBOX_GIP_PROTOCOL  0xD0u
 
+/* Xbox 360 XInput interface signature.
+ * bInterfaceSubClass=0x5D, bInterfaceProtocol=0x01.
+ * Matches all Xbox 360 / XInput-compatible controllers regardless of PID. */
+#define XBOX360_XINPUT_SUBCLASS  0x5Du
+#define XBOX360_XINPUT_PROTOCOL  0x01u
+
 /* Path list is now built dynamically per scan from /dev — see manager loop. */
 
 /* Match a (vid,pid) against our supported controller table.
@@ -305,14 +311,23 @@ static int probe_one_path(const char *path, uint16_t *out_vid, uint16_t *out_pid
             {
                 struct usb_interface_descriptor id;
                 memset(&id, 0, sizeof(id));
-                if (ioctl(fd, USB_GET_RX_INTERFACE_DESC, &id) == 0 &&
-                    id.bInterfaceSubClass == XBOX_GIP_SUBCLASS &&
-                    id.bInterfaceProtocol == XBOX_GIP_PROTOCOL) {
-                    gp_log("scan: %s GIP Xbox One/Series (sub=0x%02x proto=0x%02x)\n",
-                           path, id.bInterfaceSubClass, id.bInterfaceProtocol);
-                    *out_vid = VID_XBOX; *out_pid = PID_XBOX;
-                    close(fd);
-                    return 1;
+                if (ioctl(fd, USB_GET_RX_INTERFACE_DESC, &id) == 0) {
+                    if (id.bInterfaceSubClass == XBOX_GIP_SUBCLASS &&
+                        id.bInterfaceProtocol == XBOX_GIP_PROTOCOL) {
+                        gp_log("scan: %s GIP Xbox One/Series (sub=0x%02x proto=0x%02x)\n",
+                               path, id.bInterfaceSubClass, id.bInterfaceProtocol);
+                        *out_vid = VID_XBOX; *out_pid = PID_XBOX;
+                        close(fd);
+                        return 1;
+                    }
+                    if (id.bInterfaceSubClass == XBOX360_XINPUT_SUBCLASS &&
+                        id.bInterfaceProtocol == XBOX360_XINPUT_PROTOCOL) {
+                        gp_log("scan: %s XInput Xbox 360 (sub=0x%02x proto=0x%02x)\n",
+                               path, id.bInterfaceSubClass, id.bInterfaceProtocol);
+                        *out_vid = VID_XBOX360; *out_pid = PID_XBOX360;
+                        close(fd);
+                        return 1;
+                    }
                 }
             }
 
