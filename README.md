@@ -13,10 +13,6 @@ Use third-party USB controllers on PS5. Reads USB HID input from a plugged-in co
 
 
 
-https://github.com/user-attachments/assets/6583b1c2-3d3d-4f2e-9e79-689121fea4a3
-
-
-
 ## Features
 
 - 60Hz input streaming from USB HID controller → virtual DualSense
