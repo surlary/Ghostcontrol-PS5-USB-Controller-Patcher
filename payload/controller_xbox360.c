@@ -1,6 +1,11 @@
 /* controller_xbox360.c — Xbox 360 Wired Controller for Ghost-Control
  * XInput protocol, no handshake needed — controller streams immediately.
  * Button layout verified from joypad-os-ds4-main xinput_descriptors.h
+ *
+ * Touchpad simulation:
+ *   LB + L3 → finger 1 touch (left stick maps to touchpad position)
+ *   RB + R3 → finger 2 touch (right stick maps to touchpad position)
+ *   Both can be active simultaneously for two-finger gestures.
  */
 
 #include "controller_xbox360.h"
@@ -70,12 +75,33 @@ void xbox360_parse_input(const uint8_t *b, ScePadData *o) {
     if (lt > 16u) btn |= SCE_PAD_BUTTON_L2;
     if (rt > 16u) btn |= SCE_PAD_BUTTON_R2;
 
-    /* Combo: LB+Start OR RB+Back → Touchpad */
+    /* Combo: LB+Start OR RB+Back → Touchpad button press */
     if (((b1 & 0x01u) && (b0 & 0x10u)) || ((b1 & 0x02u) && (b0 & 0x20u))) {
         if (b1 & 0x01u) btn &= ~(SCE_PAD_BUTTON_L1 | SCE_PAD_BUTTON_OPTIONS);
         if (b1 & 0x02u) btn &= ~(SCE_PAD_BUTTON_R1 | SCE_PAD_BUTTON_SHARE);
         btn |= SCE_PAD_BUTTON_TOUCH_PAD;
     }
+
+    /* Touchpad simulation: LB/RB as modifier for stick-based touch.
+     *   LB + L3 → finger 1 (left stick → touchpad position)
+     *   RB + R3 → finger 2 (right stick → touchpad position)
+     * When active, suppress the modifier keys (LB/RB, L3/R3) from output. */
+    uint8_t fingers = 0;
+    if ((b1 & 0x01u) && (b0 & 0x40u)) {  /* LB + L3 */
+        btn &= ~(SCE_PAD_BUTTON_L1 | SCE_PAD_BUTTON_L3);
+        o->touchData.touch[0].finger = 1;
+        o->touchData.touch[0].x = (uint16_t)((uint32_t)o->leftStick.x * 1920u / 255u);
+        o->touchData.touch[0].y = (uint16_t)((uint32_t)(255u - o->leftStick.y) * 942u / 255u);
+        fingers++;
+    }
+    if ((b1 & 0x02u) && (b0 & 0x80u)) {  /* RB + R3 */
+        btn &= ~(SCE_PAD_BUTTON_R1 | SCE_PAD_BUTTON_R3);
+        o->touchData.touch[1].finger = 2;
+        o->touchData.touch[1].x = (uint16_t)((uint32_t)o->rightStick.x * 1920u / 255u);
+        o->touchData.touch[1].y = (uint16_t)((uint32_t)(255u - o->rightStick.y) * 942u / 255u);
+        fingers++;
+    }
+    o->touchData.fingers = fingers;
 
     o->buttons   = btn;
     o->connected = 1;
