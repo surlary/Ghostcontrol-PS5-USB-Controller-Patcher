@@ -561,8 +561,7 @@ static void *usb_hid_thread(void *arg) {
          * the LED around the Xbox button flashes indefinitely in "searching" mode.
          * Command format: [0x01]=Set_LED [pattern]. 0x02=P1, 0x03=P2, 0x04=P3, 0x05=P4. */
         if (out_opened) {
-            uint8_t led_cmd[] = {0x01, 0x02}; // Player 1
-            usb_fs_send_out_report(fd, &eps[1], led_cmd, sizeof(led_cmd), "xbox360_led");
+            usb_send_cmd(fd, &eps[1], 0x01, 0x02);  /* Set LED: Player 1 */
         }
 
         goto main_loop;
