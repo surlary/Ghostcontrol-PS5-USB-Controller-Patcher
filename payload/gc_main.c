@@ -481,7 +481,7 @@ static void *usb_hid_thread(void *arg) {
         init.pEndpoints=eps; init.ep_index_max=2;
         if (ioctl(fd,USB_FS_INIT,&init)!=0){
             gp_log("slot[%d] DS4 FS_INIT fail errno=%d\n",slot,errno);
-            close(fd); goto exit_slot;
+            goto uninit_exit;
         }
 
         /* Try DS4 IN ep 0x84 first (real Sony DS4); fall back to 0x81 (HORI). */
@@ -534,7 +534,7 @@ static void *usb_hid_thread(void *arg) {
         init.pEndpoints=eps; init.ep_index_max=2;
         if (ioctl(fd,USB_FS_INIT,&init)!=0){
             gp_log("slot[%d] Xbox360 FS_INIT fail errno=%d\n",slot,errno);
-            close(fd); goto exit_slot;
+            goto uninit_exit;
         }
 
         memset(&fs_open,0,sizeof(fs_open));
@@ -578,7 +578,7 @@ static void *usb_hid_thread(void *arg) {
         init.pEndpoints=eps; init.ep_index_max=4;
         if (ioctl(fd,USB_FS_INIT,&init)!=0){
             gp_log("slot[%d] Xbox FS_INIT fail errno=%d\n",slot,errno);
-            close(fd); goto exit_slot;
+            goto uninit_exit;
         }
 
         memset(&fs_open,0,sizeof(fs_open));
@@ -759,14 +759,19 @@ uninit_exit:
 
 exit_slot:
     gp_log("slot[%d] USB thread exiting — freeing slot\n", slot);
-    scePadVirtualDeviceDeleteDevice(g_slots[slot].handle);
+    /* Atomically capture handle + fd under lock, set to -1.
+     * If timeout already cleaned up (handle=-1, fd=-1), we skip both.
+     * If timeout hasn't run yet, we clean up here and timeout will see -1. */
+    int32_t my_handle; int my_fd;
     pthread_mutex_lock(&g_slot_lock);
-    g_slots[slot].handle    = -1;
-    g_slots[slot].vdi_ready = 0;
-    g_slots[slot].usb_active= 0;
-    g_slots[slot].usb_fd    = -1;
+    my_handle = g_slots[slot].handle; g_slots[slot].handle = -1;
+    my_fd     = g_slots[slot].usb_fd; g_slots[slot].usb_fd = -1;
+    g_slots[slot].vdi_ready  = 0;
+    g_slots[slot].usb_active = 0;
     g_slots[slot].dev_path[0] = '\0';
     pthread_mutex_unlock(&g_slot_lock);
+    if (my_handle >= 0) scePadVirtualDeviceDeleteDevice(my_handle);
+    if (my_fd >= 0) close(my_fd);
     return NULL;
 }
 
@@ -917,7 +922,22 @@ static void *controller_manager_thread(void *arg) {
         static int assign_wait = 0;
         if (g_assign_slot >= 0) {
             if (++assign_wait > 6) {  /* 6 * 2s = 12s */
-                gp_log("manager: assignment timeout slot[%d] — releasing gate\n", g_assign_slot);
+                int ts = g_assign_slot;
+                gp_log("manager: assignment timeout slot[%d] — releasing gate\n", ts);
+                /* Atomically capture handle + fd, mark as -1 so the old USB
+                 * thread won't double-delete when it exits. */
+                int32_t th; int tfd;
+                pthread_mutex_lock(&g_slot_lock);
+                th  = g_slots[ts].handle;      g_slots[ts].handle = -1;
+                tfd = g_slots[ts].usb_fd;      g_slots[ts].usb_fd = -1;
+                g_slots[ts].usb_active = 0;
+                g_slots[ts].vdi_ready  = 0;
+                g_slots[ts].dev_path[0] = '\0';
+                pthread_mutex_unlock(&g_slot_lock);
+                /* Delete VDA (old thread has handle=-1, will skip).
+                 * Close fd → forces old USB thread to exit via EBADF. */
+                if (th  >= 0) scePadVirtualDeviceDeleteDevice(th);
+                if (tfd >= 0) close(tfd);
                 g_assign_slot = -1;
                 assign_wait = 0;
             }
