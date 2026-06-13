@@ -1,6 +1,11 @@
 /* controller_xbox.c — Xbox One S GIP controller for Ghost-Control
  * All button bit positions hardware-confirmed on PS5 via live GIP probe.
  * Reference: xboxSeriesSButtonBits.md
+ *
+ * Touchpad simulation (Share = View button as modifier):
+ *   Share + L3 → finger 1 touch (left stick maps to touchpad position)
+ *   Share + R3 → finger 2 touch (right stick maps to touchpad position)
+ *   Both can be active simultaneously for two-finger gestures.
  */
 
 #include "controller_xbox.h"
@@ -85,6 +90,29 @@ void xbox_parse_input(const uint8_t *b, ScePadData *o) {
     /* Triggers: analog + digital threshold */
     if (lt > 16u) btn |= SCE_PAD_BUTTON_L2;
     if (rt > 16u) btn |= SCE_PAD_BUTTON_R2;
+
+    /* Touchpad simulation: Share (View) as modifier for stick-based touch.
+     *   Share + L3 → finger 1 (left stick → touchpad position)
+     *   Share + R3 → finger 2 (right stick → touchpad position)
+     * When active, suppress the modifier keys (Share, L3/R3) from output. */
+    uint8_t fingers = 0;
+    if (b4 & 0x08u) {  /* Share (View) held */
+        if (b5 & 0x40u) {  /* L3 */
+            btn &= ~(SCE_PAD_BUTTON_SHARE | SCE_PAD_BUTTON_L3);
+            o->touchData.touch[0].finger = 1;
+            o->touchData.touch[0].x = (uint16_t)((uint32_t)o->leftStick.x * 1920u / 255u);
+            o->touchData.touch[0].y = (uint16_t)((uint32_t)(255u - o->leftStick.y) * 942u / 255u);
+            fingers++;
+        }
+        if (b5 & 0x80u) {  /* R3 */
+            btn &= ~(SCE_PAD_BUTTON_SHARE | SCE_PAD_BUTTON_R3);
+            o->touchData.touch[1].finger = 2;
+            o->touchData.touch[1].x = (uint16_t)((uint32_t)o->rightStick.x * 1920u / 255u);
+            o->touchData.touch[1].y = (uint16_t)((uint32_t)(255u - o->rightStick.y) * 942u / 255u);
+            fingers++;
+        }
+    }
+    o->touchData.fingers = fingers;
 
     o->buttons   = btn;
     o->connected = 1;
