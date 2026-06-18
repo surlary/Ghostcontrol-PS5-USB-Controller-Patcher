@@ -559,10 +559,9 @@ static void *usb_hid_thread(void *arg) {
 
         /* Set LED to Player 1 (top-left quadrant solid). Without this command,
          * the LED around the Xbox button flashes indefinitely in "searching" mode.
-         * Command format: [0x01]=Set_LED [pattern]. 0x02=P1, 0x03=P2, 0x04=P3, 0x05=P4. */
-        if (out_opened) {
-            usb_send_cmd(fd, &eps[1], 0x01, 0x02);  /* Set LED: Player 1 */
-        }
+         * Command format: [0x01]=Report ID, [0x03]=Set_LED subcommand, [mode].
+         * Modes: 0x02=P1, 0x03=P2, 0x04=P3, 0x05=P4.
+         * NOTE: LED command is sent after first input packet (see main_loop). */
 
         goto main_loop;
     }
@@ -677,6 +676,7 @@ main_loop: ;
     int is_ds4 = (vid == VID_SONY || vid == VID_HORI);
     int hs_state = (pid==PID_XBOX || pid==PID_XBOX360 || is_ds4) ? HS_STREAMING : HS_WAIT_81_01;
     uint8_t nintendo_seq = 1;
+    int xbox360_led_set = 0;  /* Flag: LED command sent after first input */
     g_slots[slot].usb_fd = fd;  /* register fd for clean teardown on SIGTERM */
 
     while (1) {
@@ -732,6 +732,13 @@ main_loop: ;
             if (!usb_ready_notified) {
                 notify("Ghostcontrol: slot[%d] streaming — controller active", slot);
                 usb_ready_notified = 1;
+            }
+            /* Xbox 360: send LED command after first valid input packet */
+            if (pid == PID_XBOX360 && !xbox360_led_set && out_opened) {
+                uint8_t led_cmd[] = {0x01, 0x03, 0x02};  /* Player 1 solid */
+                usb_send_out(fd, &eps[1], led_cmd, 3, "xbox360_led");
+                xbox360_led_set = 1;
+                gp_log("slot[%d] Xbox360 LED set to Player 1\n", slot);
             }
             /* First real button press confirms the assignment — release the gate
              * so the manager can start the next controller's dialog. */
