@@ -87,19 +87,18 @@ void xbox360_parse_input(const uint8_t *b, ScePadData *o) {
      *   RB + R3 → finger 2 (right stick → touchpad position)
      * When active, suppress the modifier keys (LB/RB, L3/R3) from output. */
     uint8_t fingers = 0;
-    if ((b1 & 0x01u) && (b1 & 0x02u) && (b0 & 0x40u)) {  /* LB + L3 */
-        btn &= ~(SCE_PAD_BUTTON_L1 | SCE_PAD_BUTTON_L3 | SCE_PAD_BUTTON_R1);
+    if ((b1 & 0x01u) && (b0 & 0x40u)) {  /* LB + L3 */
+        btn &= ~(SCE_PAD_BUTTON_L1 | SCE_PAD_BUTTON_L3);
         o->touchData.touch[0].finger = 1;
         o->touchData.touch[0].x = (uint16_t)((uint32_t)o->leftStick.x * 1920u / 255u);
-        o->touchData.touch[0].y = (uint16_t)((uint32_t)(255u - o->leftStick.y) * 942u / 255u);
+        o->touchData.touch[0].y = (uint16_t)((uint32_t)o->leftStick.y * 942u / 255u);
         fingers++;
-        
     }
-    if ((b1 & 0x02u) && (b1 & 0x01u) && (b0 & 0x80u)) {  /* RB + R3 */
-        btn &= ~(SCE_PAD_BUTTON_R1 | SCE_PAD_BUTTON_R3 | SCE_PAD_BUTTON_L1);
+    if ((b1 & 0x02u) && (b0 & 0x80u)) {  /* RB + R3 */
+        btn &= ~(SCE_PAD_BUTTON_R1 | SCE_PAD_BUTTON_R3);
         o->touchData.touch[1].finger = 2;
         o->touchData.touch[1].x = (uint16_t)((uint32_t)o->rightStick.x * 1920u / 255u);
-        o->touchData.touch[1].y = (uint16_t)((uint32_t)(255u - o->rightStick.y) * 942u / 255u);
+        o->touchData.touch[1].y = (uint16_t)((uint32_t)o->rightStick.y * 942u / 255u);
         fingers++;
     }
     o->touchData.fingers = fingers;
