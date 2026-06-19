@@ -101,14 +101,14 @@ void xbox_parse_input(const uint8_t *b, ScePadData *o) {
             btn &= ~(SCE_PAD_BUTTON_SHARE | SCE_PAD_BUTTON_L3);
             o->touchData.touch[0].finger = 1;
             o->touchData.touch[0].x = (uint16_t)((uint32_t)o->leftStick.x * 1920u / 255u);
-            o->touchData.touch[0].y = (uint16_t)((uint32_t)(255u - o->leftStick.y) * 942u / 255u);
+            o->touchData.touch[0].y = (uint16_t)((uint32_t)o->leftStick.y * 942u / 255u);
             fingers++;
         }
         if (b5 & 0x80u) {  /* R3 */
             btn &= ~(SCE_PAD_BUTTON_SHARE | SCE_PAD_BUTTON_R3);
             o->touchData.touch[1].finger = 2;
             o->touchData.touch[1].x = (uint16_t)((uint32_t)o->rightStick.x * 1920u / 255u);
-            o->touchData.touch[1].y = (uint16_t)((uint32_t)(255u - o->rightStick.y) * 942u / 255u);
+            o->touchData.touch[1].y = (uint16_t)((uint32_t)o->rightStick.y * 942u / 255u);
             fingers++;
         }
     }
