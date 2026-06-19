@@ -6,13 +6,13 @@
  * Touchpad layout (bytes 29-40):
  *   29:  finger1 contact (bit7=NOT touching, bits6:0=id)
  *   30:  finger1 X low 8
- *   31:  finger1 X high 4 (low nibble) | Y low 4 (high nibble)
- *   32:  finger1 Y high 8
+ *   31:  finger1 X high 4 (low nibble) | Y high 4 (high nibble)
+ *   32:  finger1 Y low 8
  *   33-36: finger1 second sample (history, ignored)
  *   37:  finger2 contact
  *   38:  finger2 X low 8
- *   39:  finger2 X high 4 | Y low 4
- *   40:  finger2 Y high 8
+ *   39:  finger2 X high 4 (low nibble) | Y high 4 (high nibble)
+ *   40:  finger2 Y low 8
  *   Resolution: 1920 x 942 (fits uint16_t directly, no scaling).
  */
 
@@ -82,7 +82,7 @@ static void parse_touch_sample(const uint8_t *s, ScePadTouch *t) {
     } else {
         t->finger = contact & 0x7Fu;
         t->x = (uint16_t)s[1] | ((uint16_t)(s[2] & 0x0Fu) << 8);
-        t->y = (uint16_t)(s[2] >> 4) | ((uint16_t)s[3] << 4);
+        t->y = ((uint16_t)(s[2] & 0xF0u) << 4) | (uint16_t)s[3];
     }
     t->pad[0] = t->pad[1] = t->pad[2] = 0;
 }
