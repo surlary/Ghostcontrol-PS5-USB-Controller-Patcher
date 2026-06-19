@@ -735,10 +735,12 @@ main_loop: ;
             }
             /* Xbox 360: send LED command after first valid input packet */
             if (pid == PID_XBOX360 && !xbox360_led_set && out_opened) {
-                uint8_t led_cmd[] = {0x01, 0x03, 0x02};  /* Player 1 solid */
+                /* LED modes: 0x02=P1, 0x03=P2, 0x04=P3, 0x05=P4 */
+                static const uint8_t led_player[] = {0x02, 0x03, 0x04, 0x05};
+                uint8_t led_cmd[] = {0x01, 0x03, led_player[slot & 3]};
                 usb_send_out(fd, &eps[1], led_cmd, 3, "xbox360_led");
                 xbox360_led_set = 1;
-                gp_log("slot[%d] Xbox360 LED set to Player 1\n", slot);
+                gp_log("slot[%d] Xbox360 LED set to Player %d\n", slot, (slot & 3) + 1);
             }
             /* First real button press confirms the assignment — release the gate
              * so the manager can start the next controller's dialog. */
@@ -1047,10 +1049,6 @@ int main(void) {
     ret=scePadInit(); gp_log("scePadInit: 0x%08x\n", ret);
     ret=scePadSetProcessPrivilege(1); gp_log("scePadSetProcessPrivilege: 0x%08x\n", ret);
 
-    /* Clean up any orphaned VDA devices */
-    for (int dh=0; dh<64; dh++) {
-        if (scePadVirtualDeviceDeleteDevice(dh)==0) gp_log("deleteDevice(%d)\n", dh);
-    }
 
     /* Start klog capture thread first — must be running before any VDA call */
     pthread_t klog_tid;
