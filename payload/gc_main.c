@@ -402,11 +402,16 @@ static int32_t create_vda_for_slot(int slot) {
     /* Disconnect existing physical devices bound to target user before binding.
      * This mimics PS5 native behavior: when a controller is assigned to a user
      * that already has one, the old controller is disconnected first. */
+    gp_log("slot[%d] checking existing devices for user 0x%x\n", slot, g_inject_uid);
     for (int idx = 0; idx < 8; idx++) {
         int32_t h = scePadGetHandle(g_inject_uid, 0, idx);  // type=0: physical
         if (h < 0) break;
+        gp_log("slot[%d]   found physical device: handle=%d\n", slot, h);
         int32_t dev_id = 0;
-        if (scePadGetDeviceId(h, &dev_id) == 0 && dev_id != 0) {
+        int32_t ret = scePadGetDeviceId(h, &dev_id);
+        gp_log("slot[%d]   scePadGetDeviceId(%d) -> ret=%d dev_id=0x%08x\n",
+               slot, h, ret, (uint32_t)dev_id);
+        if (ret == 0 && dev_id != 0) {
             gp_log("slot[%d] disconnecting existing device handle=%d id=0x%08x\n",
                    slot, h, (uint32_t)dev_id);
             shellui_pad_disconnect_device((uint64_t)(uint32_t)dev_id);
