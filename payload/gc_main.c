@@ -86,6 +86,7 @@ extern int32_t sceUserServiceGetForegroundUser(int32_t *outUserId);
 extern int32_t scePadInit(void);
 extern int32_t scePadSetProcessPrivilege(int32_t privilege);
 extern int32_t scePadGetHandle(int32_t userId, int32_t type, int32_t index);
+extern int32_t scePadGetDeviceId(int32_t handle, int32_t *deviceId);
 extern int32_t scePadVirtualDeviceAddDevice(void *param, int32_t deviceType);
 extern int32_t scePadVirtualDeviceDeleteDevice(int32_t handle);
 extern int32_t scePadVirtualDeviceInsertData(int32_t handle, const void *padData);
@@ -398,6 +399,20 @@ done:
 
 /* ── Create VDA and force_bind for a slot ─────────────────────────────── */
 static int32_t create_vda_for_slot(int slot) {
+    /* Disconnect existing physical devices bound to target user before binding.
+     * This mimics PS5 native behavior: when a controller is assigned to a user
+     * that already has one, the old controller is disconnected first. */
+    for (int idx = 0; idx < 8; idx++) {
+        int32_t h = scePadGetHandle(g_inject_uid, 0, idx);  // type=0: physical
+        if (h < 0) break;
+        int32_t dev_id = 0;
+        if (scePadGetDeviceId(h, &dev_id) == 0 && dev_id != 0) {
+            gp_log("slot[%d] disconnecting existing device handle=%d id=0x%08x\n",
+                   slot, h, (uint32_t)dev_id);
+            shellui_pad_disconnect_device((uint64_t)(uint32_t)dev_id);
+        }
+    }
+
     struct { int32_t size; int32_t userId; int32_t pad[6]; } vdp;
     const int32_t SEN = (int32_t)0xDEADBEEFu;
     memset(&vdp,0,sizeof(vdp)); vdp.size=sizeof(vdp); vdp.userId=1;
