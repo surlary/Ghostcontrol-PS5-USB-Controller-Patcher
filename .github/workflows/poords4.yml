@@ -21,6 +21,7 @@ jobs:
       run: |
         cp -r poords4patch/* PoorDS4/payload/
         ls -lhrt PoorDS4/payload/
+        wc -l PoorDS4/payload/*
 
     - name: Cache PS5 Payload SDK
       id: cache-sdk
