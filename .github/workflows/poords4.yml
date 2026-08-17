@@ -18,7 +18,9 @@ jobs:
       run: git clone --depth 1 https://github.com/ItsBlurf/PoorDS4.git PoorDS4
 
     - name: Apply patches
-      run: cp -r poords4patch/* PoorDS4/payload/
+      run: |
+        cp -r poords4patch/* PoorDS4/payload/
+        ls -lhrt PoorDS4/payload/
 
     - name: Cache PS5 Payload SDK
       id: cache-sdk
