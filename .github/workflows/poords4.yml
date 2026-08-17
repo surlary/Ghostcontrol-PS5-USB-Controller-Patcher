@@ -1,0 +1,57 @@
+name: build-poords4
+
+on:
+  workflow_dispatch:
+
+env:
+  SDK_PATH: ${{ github.workspace }}/_sdk/ps5-payload-sdk
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Clone PoorDS4
+      run: git clone --depth 1 https://github.com/ItsBlurf/PoorDS4.git PoorDS4
+
+    - name: Apply patches
+      run: cp -r poords4patch/* PoorDS4/payload/
+
+    - name: Cache PS5 Payload SDK
+      id: cache-sdk
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.SDK_PATH }}
+        key: ps5-payload-sdk-v1
+        restore-keys: |
+          ps5-payload-sdk-
+
+    - name: Install prerequisites
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-18 lld-18
+
+    - name: Build PS5 Payload SDK
+      if: steps.cache-sdk.outputs.cache-hit != 'true'
+      run: |
+        git clone --depth 1 https://github.com/ps5-payload-dev/sdk.git /tmp/ps5-sdk
+        cd /tmp/ps5-sdk
+        export PS5_PAYLOAD_SDK="${{ env.SDK_PATH }}"
+        export DESTDIR="${{ env.SDK_PATH }}"
+        make install
+        ./libcxx.sh
+
+    - name: Build PoorDS4
+      run: make -C PoorDS4/payload clean all
+      env:
+        PS5_PAYLOAD_SDK: ${{ env.SDK_PATH }}
+
+    - name: Upload ELF
+      uses: actions/upload-artifact@v4
+      with:
+        name: PoorDS4-patched
+        path: PoorDS4/payload/*.elf
+        if-no-files-found: error
