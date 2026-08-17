@@ -48,7 +48,7 @@ jobs:
         ./libcxx.sh
 
     - name: Build PoorDS4
-      run: make -C PoorDS4/payload clean all
+      run: make -C PoorDS4/payload clean release
       env:
         PS5_PAYLOAD_SDK: ${{ env.SDK_PATH }}
 
