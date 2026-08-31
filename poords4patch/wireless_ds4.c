@@ -4286,14 +4286,23 @@ game_cache_find_table(pid_t target, intptr_t base, uint64_t mapsize,
     }
     /* Firmware such as 4.03 reaches the client table through a global
      * pointer instead of an inline stride/limit loop. Dump the data at
-     * every RIP-relative LEA target so the table base pointer (and any
-     * referenced globals) can be recovered offline. */
-    intptr_t lea_targets[32];
-    unsigned lea_count = 0;
+     * every RIP-relative LEA target and every RIP-relative MOV load so the
+     * table base pointer (and any referenced globals) can be recovered
+     * offline. */
+    intptr_t ref_targets[48];
+    uint8_t ref_kinds[48]; /* 0 = lea, 1 = mov */
+    unsigned ref_count = 0;
     for (size_t offset = 0; offset + 7u <= sizeof(code); ++offset) {
         uint8_t rex = code[offset];
-        if ((rex != 0x48 && rex != 0x4c) ||
-            code[offset + 1u] != 0x8d)
+        if (rex != 0x48 && rex != 0x4c)
+            continue;
+        uint8_t opcode = code[offset + 1u];
+        uint8_t kind;
+        if (opcode == 0x8d)
+            kind = 0; /* lea */
+        else if (opcode == 0x8b)
+            kind = 1; /* mov */
+        else
             continue;
         if ((code[offset + 2u] & 0xc7u) != 0x05u)
             continue;
@@ -4305,29 +4314,32 @@ game_cache_find_table(pid_t target, intptr_t base, uint64_t mapsize,
             (uint64_t)(target_addr - base) >= mapsize)
             continue;
         int duplicate = 0;
-        for (unsigned prior = 0; prior < lea_count; ++prior) {
-            if (lea_targets[prior] == target_addr) {
+        for (unsigned prior = 0; prior < ref_count; ++prior) {
+            if (ref_targets[prior] == target_addr) {
                 duplicate = 1;
                 break;
             }
         }
-        if (duplicate || lea_count >= 32u)
+        if (duplicate || ref_count >= 48u)
             continue;
-        lea_targets[lea_count++] = target_addr;
+        ref_targets[ref_count] = target_addr;
+        ref_kinds[ref_count] = kind;
+        ref_count++;
     }
-    report_printf(report_fd, "lea_target_count=%u\n", lea_count);
-    for (unsigned index = 0; index < lea_count; ++index) {
+    report_printf(report_fd, "ref_target_count=%u\n", ref_count);
+    for (unsigned index = 0; index < ref_count; ++index) {
         uint8_t data[64];
-        if (mdbg_copyout(target, lea_targets[index], data,
+        const char *kind_name = ref_kinds[index] == 0 ? "lea" : "mov";
+        if (mdbg_copyout(target, ref_targets[index], data,
                          sizeof(data)) != 0) {
             report_printf(report_fd,
-                          "lea_data_0x%lx_copyout_failed\n",
-                          (unsigned long)(lea_targets[index] - base));
+                          "%s_data_0x%lx_copyout_failed\n", kind_name,
+                          (unsigned long)(ref_targets[index] - base));
             continue;
         }
         char name[48];
-        snprintf(name, sizeof(name), "lea_data_0x%lx",
-                 (unsigned long)(lea_targets[index] - base));
+        snprintf(name, sizeof(name), "%s_data_0x%lx", kind_name,
+                 (unsigned long)(ref_targets[index] - base));
         game_bridge_report_prefix(report_fd, name, data, sizeof(data));
     }
     return -1;
